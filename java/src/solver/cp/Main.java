@@ -34,18 +34,19 @@ public class Main
 
 	System.out.println("{\"Instance\": \"" + filename +
 			"\", \"Time\": " + String.format("%.2f",watch.getTime()) +
-			", \"Result\": \"" + instance.cp.getInfo(IloCP.IntInfo.NumberOfFails) + "\"}");
+			", \"Result\": \"" + instance.cp.getInfo(IloCP.IntInfo.NumberOfFails) + "\"}" +
+      "\"Solution\": \"" + instance.printSolution() +"\"");
 					   
-     watch = new Timer();
-    watch.start();
-     instance = new CPInstance(input);
-    instance.solveAustraliaBinaryArray();
-    watch.stop();
+    //  watch = new Timer();
+    // watch.start();
+    //  instance = new CPInstance(input);
+    // instance.solveAustraliaBinaryArray();
+    // watch.stop();
      
-    // OUTPUT FORMAT
-    System.out.println("Instance: " + "Binary" + 
-                       " Time: " + String.format("%.2f",watch.getTime()) +
-                       " Result: " + instance.cp.getInfo(IloCP.IntInfo.NumberOfFails));
+    // // OUTPUT FORMAT
+    // System.out.println("Instance: " + "Binary" + 
+    //                    " Time: " + String.format("%.2f",watch.getTime()) +
+    //                    " Result: " + instance.cp.getInfo(IloCP.IntInfo.NumberOfFails));
  
     // watch.start();
     // instance.solveAustraliaGlobal();

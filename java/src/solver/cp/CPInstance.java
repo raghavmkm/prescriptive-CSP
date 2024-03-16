@@ -9,6 +9,7 @@ import java.io.FileNotFoundException;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.Scanner;
+import java.util.*;
 
 public class CPInstance
 {
@@ -31,6 +32,10 @@ public class CPInstance
 
   // ILOG CP Solver
   IloCP cp;
+
+  //My variable
+  int[][] beginED;
+  int[][] endED;
     
   public CPInstance(String fileName)
   {
@@ -106,27 +111,150 @@ public class CPInstance
     }
   }
 
+  IloIntVar[] flatten(IloIntVar[][] x){
+    IloIntVar[] x_flat = new IloIntVar[x[0].length * x.length];
+    int index = 0;
+    for(int i = 0; i < x.length; i++){
+      for(int j = 0; j < x[0].length; j++){
+        x_flat[index] = x[i][j];
+        index += 1;
+      }
+    }
+    return x_flat;
+  }
+
   public void solve()
   {
     try
     {
       cp = new IloCP();
-
       // TODO: Employee Scheduling Model Goes Here
+      //creating the variable for the shift matrix and assigning its domain
+      int[] shiftDomainValues = {0, 1, 2, 3};
+      IloIntVar[][] shiftEmployeeDay = new IloIntVar[numEmployees][numDays];
+      for(int i = 0; i < numEmployees; i++){
+        for(int j = 0; j < numDays; j++){
+          shiftEmployeeDay[i][j] = cp.intVar(shiftDomainValues); 
+        }
+      }
+
+      //creating the variable for hours matrix and assigning its domain
+      int[] durationDomainValues = {0, 4, 5, 6, 7, 8};
+      IloIntVar[][] durationEmployeeDay = new IloIntVar[numEmployees][numDays];
+      for(int i = 0; i < numEmployees; i++){
+        for(int j = 0; j < numDays; j++){
+          durationEmployeeDay[i][j] = cp.intVar(durationDomainValues);
+        }
+      }
+
+      //constraint 1 - shift i,j is not off equivalent to duration i,j not 0
+      for(int i = 0; i < numEmployees; i++){
+        for(int j = 0; j < numDays; j++){
+          cp.add(cp.ifThen(cp.neq(durationEmployeeDay[i][j], 0), cp.neq(shiftEmployeeDay[i][j], 0)));
+          cp.add(cp.ifThen(cp.neq(shiftEmployeeDay[i][j], 0), cp.neq(durationEmployeeDay[i][j], 0)));
+        }
+      }
+
+      //constraint 2 - cannot work consecutive night shifts
+
+    for(int i = 0; i < numEmployees; i++){
+      for(int j = 0; j < numDays - 1; j++){
+        cp.add(cp.ifThen(cp.eq(shiftEmployeeDay[i][j], 1), cp.neq(shiftEmployeeDay[i][j + 1], 1)));
+      }
+    }
+
+    //constraint 3 - Weekly working constraint
+    for(int i = 0; i < numEmployees; i++){
+      for(int j = 0; j < numDays; j+=7){
+        IloIntVar[] weeklyHours = new IloIntVar[7];
+        weeklyHours[0] = durationEmployeeDay[i][j];
+        weeklyHours[1] = durationEmployeeDay[i][j + 1];
+        weeklyHours[2] = durationEmployeeDay[i][j + 2];
+        weeklyHours[3] = durationEmployeeDay[i][j + 3];
+        weeklyHours[4] = durationEmployeeDay[i][j + 4];
+        weeklyHours[5] = durationEmployeeDay[i][j + 5];
+        weeklyHours[6] = durationEmployeeDay[i][j + 6];
+        cp.add(cp.le(cp.sum(weeklyHours), maxWeeklyWork));
+        cp.add(cp.ge(cp.sum(weeklyHours), minWeeklyWork));
+      }
+    }
+
+    //constraint 4 - Max night shift constraint
+    for(int i = 0; i < numEmployees; i++){
+      cp.add(cp.le(cp.count(shiftEmployeeDay[i], 1), maxTotalNightShift));
+    }
+
+    //constraint 5 - First 4 days all diff constraint
+    for(int i = 0; i < numEmployees; i++){
+      IloIntVar[] trainingDays = new IloIntVar[4];
+      trainingDays[0] = shiftEmployeeDay[i][0];
+      trainingDays[1] = shiftEmployeeDay[i][1];
+      trainingDays[2] = shiftEmployeeDay[i][2];
+      trainingDays[3] = shiftEmployeeDay[i][3];
+      cp.add(cp.allDiff(trainingDays));
+    }
+
+    //constraint 6 - min number of employees per shift per day
+    for(int j = 0; j < numDays; j++){
+      IloIntVar[] shiftsOnDay = new IloIntVar[numEmployees];
+      for(int i = 0; i < numEmployees; i++){
+        shiftsOnDay[i] = shiftEmployeeDay[i][j];
+      }
+      cp.add(cp.ge(cp.count(shiftsOnDay, 0), minDemandDayShift[j][0]));
+      cp.add(cp.ge(cp.count(shiftsOnDay, 1), minDemandDayShift[j][1]));
+      cp.add(cp.ge(cp.count(shiftsOnDay, 2), minDemandDayShift[j][2]));
+      cp.add(cp.ge(cp.count(shiftsOnDay, 3), minDemandDayShift[j][3]));
+    }
+
+    //constraint 7 - min daily operation
+    for(int j = 0; j < numDays; j++){
+      IloIntVar[] durationOnDay = new IloIntVar[numEmployees];
+      for(int i = 0; i < numEmployees; i++){
+        durationOnDay[i] = durationEmployeeDay[i][j];
+      }
+      cp.add(cp.ge(cp.sum(durationOnDay), minDailyOperation));
+    }
+
+
         
       // Important: Do not change! Keep these parameters as is
       cp.setParameter(IloCP.IntParam.Workers, 1);
       cp.setParameter(IloCP.DoubleParam.TimeLimit, 300);
-      // cp.setParameter(IloCP.IntParam.SearchType, IloCP.ParameterValues.DepthFirst);   
+      cp.setParameter(IloCP.IntParam.SearchType, IloCP.ParameterValues.DepthFirst);  
+      IloVarSelector[] varSelector = new IloVarSelector[2];
+      varSelector[0] = cp.selectSmallest(cp.domainSize());
+      varSelector[1] = cp.selectRandomVar();
+      IloIntVarChooser varChooser = cp.intVarChooser(varSelector);
+      IloValueSelector valSel = cp.selectLargest(cp.value());
+      IloIntValueChooser valChooser = cp.intValueChooser(valSel);
+      IloSearchPhase shiftsSearch = cp.searchPhase(flatten(shiftEmployeeDay), varChooser, valChooser);
+      IloSearchPhase durationSearch = cp.searchPhase(flatten(durationEmployeeDay), varChooser, valChooser);
+      // IloSearchPhase[] phases = new IloSearchPhase[2];
+      // phases[0] = shiftsSearch;
+      // phases[1] = durationSearch;
+      // cp.add(shiftsSearch);
+      // cp.add(durationSearch);
+
+
   
       // Uncomment this: to set the solver output level if you wish
       // cp.setParameter(IloCP.IntParam.LogVerbosity, IloCP.ParameterValues.Quiet);
       if(cp.solve())
       {
         cp.printInformation();
+
+        int[] shiftHours = {-1, 0, 8, 16};
+        beginED = new int[numEmployees][numDays];
+        endED = new int[numEmployees][numDays];
+        for(int i = 0; i < numEmployees; i++){
+          for(int j = 0; j < numDays; j++){
+            beginED[i][j] = shiftHours[(int)cp.getValue(shiftEmployeeDay[i][j])];
+            endED[i][j] = shiftHours[(int)cp.getValue(shiftEmployeeDay[i][j])] + (int)cp.getValue(durationEmployeeDay[i][j]);
+          }
+        }
         
         // Uncomment this: for poor man's Gantt Chart to display schedules
-        // prettyPrint(numEmployees, numDays, beginED, endED);	
+        prettyPrint(numEmployees, numDays, beginED, endED);	
       }
       else
       {
@@ -138,6 +266,159 @@ public class CPInstance
     {
       System.out.println("Error: " + e);
     }
+  }
+
+
+  String printSolution(){
+    String output = "";
+    for(int i = 0; i < numEmployees; i++){
+      for(int j = 0; j < numDays; j++){
+        if(i == 0 && j == 0){
+          output += Integer.toString(beginED[i][j]) + " " + Integer.toString(endED[i][j]);
+        }
+        else{
+          output += " " + Integer.toString(beginED[i][j]) + " " + Integer.toString(endED[i][j]);
+        }
+      }
+    }
+    return output;
+  }
+
+  void checkConst1(){
+    for(int i = 0; i < numEmployees; i++){
+      for(int j = 0; j < numDays; j++){
+        if(beginED[i][j] == -1){
+          if(endED[i][j] != -1){
+            System.out.println("CONSTRAINT1 is UNSAT");
+            return;
+          }
+        }
+      }
+    }
+    System.out.println("CONSTRAINT1 is SAT");
+  }
+
+  void checkConst2(){
+    for(int i = 0; i < numEmployees; i++){
+      for(int j = 0; j < numDays - 1; j++){
+        if(beginED[i][j] == 0){
+          if(beginED[i][j + 1] == 0){
+            System.out.println("CONSTRAINT2 is UNSAT");
+            return;
+          }
+        }
+      }
+    }
+    System.out.println("CONSTRAINT2 is SAT");
+  }
+
+  void checkConst3(){
+    for(int i = 0; i < numEmployees; i++){
+      for(int j = 0; j < numDays; j+=7){
+        int workInWeek = 0;
+        workInWeek += endED[i][j] - beginED[i][j];
+        workInWeek += endED[i][j + 1] - beginED[i][j + 1];
+        workInWeek += endED[i][j + 2] - beginED[i][j + 2];
+        workInWeek += endED[i][j + 3] - beginED[i][j + 3];
+        workInWeek += endED[i][j + 4] - beginED[i][j + 4];
+        workInWeek += endED[i][j + 5] - beginED[i][j + 5];
+        workInWeek += endED[i][j + 6] - beginED[i][j + 6];
+        System.out.println(workInWeek);
+        if(workInWeek > maxWeeklyWork || workInWeek < minWeeklyWork){
+          System.out.println("CONSTRAIN3 is UNSAT");
+          return;
+        }
+      }
+    }
+    System.out.println("CONSTRAINT3 is SAT");
+  }
+
+  void checkConst4(){
+    for(int i = 0; i < numEmployees; i++){
+      int nightShifts = 0;
+      for(int j = 0; j < numDays; j++){
+        if(beginED[i][j] == 0){
+          nightShifts += 1;
+        }
+      }
+      if(nightShifts > maxTotalNightShift){
+        System.out.println("CONSTRAIN 4 is UNSAT");
+        return;
+      }
+    }
+    System.out.println("CONSTRAINT4 is SAT");
+  }
+
+  void checkConst5(){
+    for(int i = 0; i < numEmployees; i++){
+      HashSet<Integer> allDif = new HashSet<Integer>();
+      allDif.add(0);
+      allDif.add(-1);
+      allDif.add(8);
+      allDif.add(16);
+      for(int j = 0; j < 4; j++){
+        allDif.remove(beginED[i][j]);
+      }
+      if(!allDif.isEmpty()){
+        System.out.println("CONSTRAINT5 is UNSAT");
+        return;
+      }
+    }
+    System.out.println("CONSTRAINT5 is SAT");
+  }
+
+  void checkConst6(){
+    for(int j = 0; j < numDays; j++){
+      int off = 0;
+      int night = 0;
+      int day = 0;
+      int evening = 0;
+      for(int i = 0; i < numEmployees; i++){
+        if(beginED[i][j] == -1){
+          off += 1;
+        }
+        else if(beginED[i][j] == 0){
+          night += 1;
+        }
+        else if(beginED[i][j] == 8){
+          day += 1;
+        }
+        else{
+          evening += 1;
+        }
+      }
+      if(off < minDemandDayShift[j][0]){
+        System.out.println("CONSTRAIN 6 is UNSAT");
+        return;
+      }
+      if(night < minDemandDayShift[j][1]){
+        System.out.println("CONSTRAIN 6 is UNSAT");
+        return;
+      }
+      if(day < minDemandDayShift[j][2]){
+        System.out.println("CONSTRAIN 6 is UNSAT");
+        return;
+      }
+      if(evening < minDemandDayShift[j][3]){
+        System.out.println("CONSTRAIN 6 is UNSAT");
+        return;
+      }
+    }
+    System.out.println("CONSTRAINT 6 is SAT");
+  }
+
+  void checkConst7(){
+    for(int j = 0; j < numDays; j++){
+      int totalHours = 0;
+      for(int i = 0; i < numEmployees; i++){
+        totalHours += endED[i][j] - beginED[i][j];
+      }
+      if(totalHours < minDailyOperation){
+        System.out.println("CONSTRAIN7 is UNSAT");
+        return;
+      }
+    }
+    System.out.println("CONSTRAINT 7 is SAT");
   }
 
   // SK: technically speaking, the model with the global constaints
@@ -206,6 +487,7 @@ public class CPInstance
       System.out.println("Error: " + e);
     }
   }
+
   
   void solveAustraliaBinary()
   {

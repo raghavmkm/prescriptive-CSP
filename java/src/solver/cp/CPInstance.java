@@ -220,54 +220,54 @@ public class CPInstance
       cp.setParameter(IloCP.IntParam.Workers, 1);
       cp.setParameter(IloCP.DoubleParam.TimeLimit, 300);
       cp.setParameter(IloCP.IntParam.SearchType, IloCP.ParameterValues.DepthFirst);  
-      IloVarSelector[] vs = new IloVarSelector[2];
-      vs[0] = cp.selectSmallest(cp.domainSize());
-      vs[1] = cp.selectRandomVar();
-      IloValueSelector minSelect = cp.selectSmallest(cp.value());
-      IloValueSelector maxSelect = cp.selectLargest(cp.value());
-      IloIntValueChooser minChooser = cp.intValueChooser(minSelect);
-      IloIntValueChooser maxChooser = cp.intValueChooser(maxSelect);
-      IloIntVarChooser varChooser = cp.intVarChooser(vs);
-      IloSearchPhase[] phases = new IloSearchPhase[2 * numDays];
-      for(int j = 0; j < numDays; j++){
-        IloIntVar[] shiftsDay = new IloIntVar[numEmployees];
-        IloIntVar[] durationDay = new IloIntVar[numEmployees];
-        for(int i = 0; i < numEmployees; i++){
-          shiftsDay[i] = shiftEmployeeDay[i][j];
-          durationDay[i] = durationEmployeeDay[i][j];
-        }
-        phases[2 * j] = cp.searchPhase(shiftsDay, varChooser, maxChooser);
-        phases[(2 * j) + 1] = cp.searchPhase(durationDay, varChooser, minChooser);
-      }
-      cp.setSearchPhases(phases);
-
-      // IloVarSelector varSelector1 = cp.selectSmallest(cp.domainSize());
-      // int[] weights = {0, 100, -1, -1, -1, 20};
-      // IloIntValueEval valEval = cp.explicitValueEval(durationDomainValues, weights);
-      // IloValueSelector valSelectorDuration = cp.selectLargest(valEval);
-      // IloValueSelector valSelectorShifts = cp.selectRandomValue();
-      // IloIntVar[][] trainingShifts = new IloIntVar[numEmployees][4];
-      // IloIntVar[][] trainingDuration = new IloIntVar[numEmployees][4];
-      // IloIntVar[][] remainingShifts = new IloIntVar[numEmployees][numDays - 4];
-      // IloIntVar[][] remainingDuration = new IloIntVar[numEmployees][numDays - 4];
-      // for(int i = 0; i < numEmployees; i++){
-      //   for(int j = 0; j < 4; j++){
-      //     trainingShifts[i][j] = shiftEmployeeDay[i][j];
-      //     trainingDuration[i][j] = durationEmployeeDay[i][j];
+      // IloVarSelector[] vs = new IloVarSelector[2];
+      // vs[0] = cp.selectSmallest(cp.domainSize());
+      // vs[1] = cp.selectRandomVar();
+      // IloValueSelector minSelect = cp.selectSmallest(cp.value());
+      // IloValueSelector maxSelect = cp.selectLargest(cp.value());
+      // IloIntValueChooser minChooser = cp.intValueChooser(minSelect);
+      // IloIntValueChooser maxChooser = cp.intValueChooser(maxSelect);
+      // IloIntVarChooser varChooser = cp.intVarChooser(vs);
+      // IloSearchPhase[] phases = new IloSearchPhase[2 * numDays];
+      // for(int j = 0; j < numDays; j++){
+      //   IloIntVar[] shiftsDay = new IloIntVar[numEmployees];
+      //   IloIntVar[] durationDay = new IloIntVar[numEmployees];
+      //   for(int i = 0; i < numEmployees; i++){
+      //     shiftsDay[i] = shiftEmployeeDay[i][j];
+      //     durationDay[i] = durationEmployeeDay[i][j];
       //   }
+      //   phases[2 * j] = cp.searchPhase(shiftsDay, varChooser, maxChooser);
+      //   phases[(2 * j) + 1] = cp.searchPhase(durationDay, varChooser, minChooser);
       // }
-      // for(int i = 0; i < numEmployees; i++){
-      //   for(int j = 4; j < numDays; j++){
-      //     remainingShifts[i][j - 4] = shiftEmployeeDay[i][j];
-      //     remainingDuration[i][j - 4] = durationEmployeeDay[i][j];
-      //   }
-      // }
-      // IloSearchPhase[] phases = new IloSearchPhase[4];
-      // phases[0] = cp.searchPhase(flatten(trainingShifts), cp.intVarChooser(varSelector1), cp.intValueChooser(valSelectorShifts));
-      // phases[1] = cp.searchPhase(flatten(trainingDuration), cp.intVarChooser(varSelector1), cp.intValueChooser(valSelectorDuration));
-      // phases[2] = cp.searchPhase(flatten(remainingShifts), cp.intVarChooser(varSelector1), cp.intValueChooser(valSelectorShifts));
-      // phases[3] = cp.searchPhase(flatten(remainingDuration), cp.intVarChooser(varSelector1), cp.intValueChooser(valSelectorDuration));
       // cp.setSearchPhases(phases);
+
+      IloVarSelector varSelector1 = cp.selectSmallest(cp.domainSize());
+      int[] weights = {0, 100, -1, -1, -1, 20};
+      IloIntValueEval valEval = cp.explicitValueEval(durationDomainValues, weights);
+      IloValueSelector valSelectorDuration = cp.selectLargest(valEval);
+      IloValueSelector valSelectorShifts = cp.selectRandomValue();
+      IloIntVar[][] trainingShifts = new IloIntVar[numEmployees][4];
+      IloIntVar[][] trainingDuration = new IloIntVar[numEmployees][4];
+      IloIntVar[][] remainingShifts = new IloIntVar[numEmployees][numDays - 4];
+      IloIntVar[][] remainingDuration = new IloIntVar[numEmployees][numDays - 4];
+      for(int i = 0; i < numEmployees; i++){
+        for(int j = 0; j < 4; j++){
+          trainingShifts[i][j] = shiftEmployeeDay[i][j];
+          trainingDuration[i][j] = durationEmployeeDay[i][j];
+        }
+      }
+      for(int i = 0; i < numEmployees; i++){
+        for(int j = 4; j < numDays; j++){
+          remainingShifts[i][j - 4] = shiftEmployeeDay[i][j];
+          remainingDuration[i][j - 4] = durationEmployeeDay[i][j];
+        }
+      }
+      IloSearchPhase[] phases = new IloSearchPhase[4];
+      phases[0] = cp.searchPhase(flatten(trainingShifts), cp.intVarChooser(varSelector1), cp.intValueChooser(valSelectorShifts));
+      phases[1] = cp.searchPhase(flatten(trainingDuration), cp.intVarChooser(varSelector1), cp.intValueChooser(valSelectorDuration));
+      phases[2] = cp.searchPhase(flatten(remainingShifts), cp.intVarChooser(varSelector1), cp.intValueChooser(valSelectorShifts));
+      phases[3] = cp.searchPhase(flatten(remainingDuration), cp.intVarChooser(varSelector1), cp.intValueChooser(valSelectorDuration));
+      cp.setSearchPhases(phases);
       // IloValueSelector valSelector1 = cp.selectSmallest(cp.value());
       // IloValueSelector valSelector2 = cp.selectLargest(cp.value())
       // IloIntVarChooser varChooser = cp.intVarChooser(varSelector);

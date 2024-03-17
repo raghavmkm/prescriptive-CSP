@@ -223,10 +223,10 @@ public class CPInstance
       cp.setParameter(IloCP.IntParam.SearchType, IloCP.ParameterValues.DepthFirst);  
 
       IloVarSelector[] varSelector = new IloVarSelector[2];
-      varSelector[0] = cp.selectSmallest(cp.domainSize());
+      varSelector[0] = cp.selectLargest(cp.varImpact());
       varSelector[1] = cp.selectRandomVar();
       IloIntVarChooser varChooser = cp.intVarChooser(varSelector);
-      IloValueSelector valSel = cp.selectRandomValue();
+      IloValueSelector valSel = cp.selectLargest(cp.valueImpact());
       IloIntValueChooser valChooser = cp.intValueChooser(valSel);
       IloIntVar[] training = new IloIntVar[numEmployees * 4 * 2];
       IloIntVar[] remaining = new IloIntVar[numEmployees * 2 * (numDays - 4)];

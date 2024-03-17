@@ -219,7 +219,46 @@ public class CPInstance
       // Important: Do not change! Keep these parameters as is
       cp.setParameter(IloCP.IntParam.Workers, 1);
       cp.setParameter(IloCP.DoubleParam.TimeLimit, 300);
+
       cp.setParameter(IloCP.IntParam.SearchType, IloCP.ParameterValues.DepthFirst);  
+
+      IloVarSelector[] varSelector = new IloVarSelector[2];
+      varSelector[0] = cp.selectSmallest(cp.domainSize());
+      varSelector[1] = cp.selectRandomVar();
+      IloIntVarChooser varChooser = cp.intVarChooser(varSelector);
+      IloValueSelector valSel = cp.selectRandomValue();
+      IloIntValueChooser valChooser = cp.intValueChooser(valSel);
+      IloIntVar[] training = new IloIntVar[numEmployees * 4 * 2];
+      IloIntVar[] remaining = new IloIntVar[numEmployees * 2 * (numDays - 4)];
+      int index = 0;
+      for(int i = 0; i < numEmployees; i++){
+        for(int j = 0; j < 4; j++){
+          training[index] =  shiftEmployeeDay[i][j];
+          index += 1;
+          training[index] = durationEmployeeDay[i][j];
+          index += 1;
+        }
+      }
+
+      index = 0;
+      for(int i = 0; i < numEmployees; i++){
+        for(int j = 4; j < numDays; j++){
+          remaining[index] =  shiftEmployeeDay[i][j];
+          index += 1;
+          remaining[index] = durationEmployeeDay[i][j];
+          index += 1;
+        }
+      }
+
+
+      IloSearchPhase trainingPhase = cp.searchPhase(training, varChooser, valChooser);
+      IloSearchPhase remainingPhase = cp.searchPhase(remaining, varChooser, valChooser);
+      IloSearchPhase[] phases = new IloSearchPhase[2];  
+      phases[0] = trainingPhase;
+      phases[1] = remainingPhase;
+      cp.setSearchPhases(phases);
+
+
       // IloVarSelector[] vs = new IloVarSelector[2];
       // vs[0] = cp.selectSmallest(cp.domainSize());
       // vs[1] = cp.selectRandomVar();
@@ -268,18 +307,26 @@ public class CPInstance
       // phases[2] = cp.searchPhase(flatten(remainingShifts), cp.intVarChooser(varSelector1), cp.intValueChooser(valSelectorShifts));
       // phases[3] = cp.searchPhase(flatten(remainingDuration), cp.intVarChooser(varSelector1), cp.intValueChooser(valSelectorDuration));
       // cp.setSearchPhases(phases);
-      IloVarSelector varSelector = cp.selectSmallest(cp.domainSize());
-      IloValueSelector valSel = cp.selectLargest(cp.value());
-      IloIntVarChooser varChooser = cp.intVarChooser(varSelector);
-      IloIntValueChooser valChooser = cp.intValueChooser(valSel);
-      IloSearchPhase shiftsSearch = cp.searchPhase(flatten(shiftEmployeeDay), varChooser, valChooser);
-      IloSearchPhase durationSearch = cp.searchPhase(flatten(durationEmployeeDay), varChooser, valChooser);
-      IloSearchPhase[] phases = new IloSearchPhase[2];
-      phases[0] = shiftsSearch;
-      phases[1] = durationSearch;
-      cp.setSearchPhases(phases);
+      // IloVarSelector varSelector = cp.selectSmallest(cp.domainSize());
+      // IloValueSelector valSel = cp.selectLargest(cp.value());
+      // IloIntVarChooser varChooser = cp.intVarChooser(varSelector);
+      // IloIntValueChooser valChooser = cp.intValueChooser(valSel);
+      // IloSearchPhase shiftsSearch = cp.searchPhase(flatten(shiftEmployeeDay), varChooser, valChooser);
+      // IloSearchPhase durationSearch = cp.searchPhase(flatten(durationEmployeeDay), varChooser, valChooser);
+      // IloSearchPhase[] phases = new IloSearchPhase[2];
       // Uncomment this: to set the solver output level if you wish
       // cp.setParameter(IloCP.IntParam.LogVerbosity, IloCP.ParameterValues.Quiet);
+
+      double failLimit = 100;
+      double growth = 1.20;
+      cp.setParameter(IloCP.IntParam.FailLimit, (int) failLimit);
+      while(!cp.solve()) {
+        cp.setParameter(IloCP.IntParam.RandomSeed, 0 + (int)Math.random() * (IloCP.IntMax - 0));
+        failLimit = failLimit * growth;
+        System.out.println("Restarting: " + failLimit);
+        cp.setParameter(IloCP.IntParam.FailLimit, (int) failLimit);
+        }
+
       if(cp.solve())
       {
         cp.printInformation();
